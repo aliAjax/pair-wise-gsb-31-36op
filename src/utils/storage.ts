@@ -1,8 +1,9 @@
 import { del, get, set } from 'idb-keyval';
 
+import { migratePayload } from '@/utils/migrations';
 import type { PersistedEnvelope } from '@/types';
 
-const STORAGE_VERSION = 1;
+const STORAGE_VERSION = 2;
 const DEFAULT_TTL = 1000 * 60 * 60 * 24 * 365;
 
 const prefixed = (key: string) => `reswap:${key}`;
@@ -14,7 +15,9 @@ export const STORAGE_KEYS = {
   exchanges: prefixed('exchanges'),
   theme: prefixed('theme'),
   lastClean: prefixed('last-clean'),
-};
+  /** 失败后留下的可重试提交批次 */
+  pendingBatches: prefixed('pending-batches'),
+} as const;
 
 const now = () => Date.now();
 
@@ -46,6 +49,16 @@ const writeLocal = <T>(key: string, payload: T, ttl?: number) => {
   localStorage.setItem(key, JSON.stringify(envelope(payload, ttl)));
 };
 
+/**
+ * 旧版本数据先迁移到当前版本，并补齐修订信息（revision / updated_at）。
+ * 无论数据来自 localStorage 还是 IndexedDB，读取时统一走一遍。
+ */
+const upgrade = <T>(key: string, data: PersistedEnvelope<T>): PersistedEnvelope<T> => {
+  if (data.version === STORAGE_VERSION) return data;
+  const migrated = migratePayload(key, data.payload, data.version);
+  return { ...data, version: STORAGE_VERSION, payload: migrated };
+};
+
 export const storage = {
   async get<T>(key: string, fallback: T): Promise<T> {
     const localEnvelope = parseLocal<T>(key);
@@ -53,8 +66,12 @@ export const storage = {
       await this.remove(key);
       return fallback;
     }
-    if (localEnvelope?.version === STORAGE_VERSION) {
-      return localEnvelope.payload;
+    if (localEnvelope && localEnvelope.version <= STORAGE_VERSION) {
+      const upgraded = upgrade(key, localEnvelope);
+      if (upgraded.version === STORAGE_VERSION) {
+        if (upgraded !== localEnvelope) writeLocal(key, upgraded.payload);
+        return upgraded.payload;
+      }
     }
 
     const indexedEnvelope = await get<PersistedEnvelope<T>>(key);
@@ -62,9 +79,12 @@ export const storage = {
       await this.remove(key);
       return fallback;
     }
-    if (indexedEnvelope?.version === STORAGE_VERSION) {
-      writeLocal(key, indexedEnvelope.payload);
-      return indexedEnvelope.payload;
+    if (indexedEnvelope && indexedEnvelope.version <= STORAGE_VERSION) {
+      const upgraded = upgrade(key, indexedEnvelope);
+      if (upgraded.version === STORAGE_VERSION) {
+        writeLocal(key, upgraded.payload);
+        return upgraded.payload;
+      }
     }
     return fallback;
   },
@@ -80,6 +100,14 @@ export const storage = {
   async remove(key: string): Promise<void> {
     localStorage.removeItem(key);
     await del(key);
+  },
+
+  /** 键是否存在（localStorage 与 IndexedDB 任一有数据即可），用于区分"空数组"与"从未初始化" */
+  async has<T = unknown>(key: string): Promise<boolean> {
+    const localEnvelope = parseLocal<T>(key);
+    if (localEnvelope && !isExpired(localEnvelope)) return true;
+    const indexedEnvelope = await get<PersistedEnvelope<T>>(key);
+    return Boolean(indexedEnvelope && !isExpired(indexedEnvelope));
   },
 
   async cleanExpired(): Promise<void> {

@@ -5,7 +5,9 @@ import { itemApi } from '@/api/itemApi';
 import { ItemStatus } from '@/constants/item';
 import { FORM_MESSAGES } from '@/constants/messages';
 import type { Item, ItemDraft } from '@/models/item';
+import { useRecoveryStore } from '@/stores/recoveryStore';
 import { message } from '@/utils/message';
+import { itemOfflineOperation } from '@/utils/revisionHelpers';
 import { validateItemDraft } from '@/utils/validators';
 
 export const useItemStore = defineStore('items', {
@@ -15,6 +17,7 @@ export const useItemStore = defineStore('items', {
     category: '全部',
     statusFilter: ItemStatus.AVAILABLE as ItemStatus,
     loading: false,
+    hydrated: false,
   }),
   getters: {
     visibleItems: (state) => {
@@ -39,6 +42,7 @@ export const useItemStore = defineStore('items', {
       this.loading = true;
       try {
         this.items = await itemApi.list();
+        this.hydrated = true;
       } finally {
         this.loading = false;
       }
@@ -63,10 +67,14 @@ export const useItemStore = defineStore('items', {
       message('物品已发布，等待合适的交换', 'success');
       return item;
     },
-    async offline(itemId: string) {
-      await itemApi.setStatus(itemId, ItemStatus.OFFLINE);
-      this.items = await itemApi.list();
-      message('物品已下架', 'success');
+    async offline(item: Item) {
+      const recovery = useRecoveryStore();
+      const result = await recovery.submit(itemOfflineOperation(item));
+      await this.hydrate();
+      if (result.ok) {
+        message('物品已下架', 'success');
+      }
+      return result;
     },
     assertCanExchange(userId: string) {
       const ownItems = this.availableMyItems(userId);

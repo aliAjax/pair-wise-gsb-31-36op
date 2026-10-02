@@ -3,6 +3,7 @@ import dayjs from 'dayjs';
 import { ExchangeStatus } from '@/constants/exchange';
 import { ItemCondition, ItemStatus } from '@/constants/item';
 import { STATUS_MESSAGE_MAP } from '@/constants/messages';
+import type { RemoteChange } from '@/types';
 
 export const formatDate = (date: string) => dayjs(date).format('YYYY-MM-DD HH:mm');
 
@@ -50,3 +51,26 @@ export const statusToneClass = (status: ItemStatus | ExchangeStatus) => {
 };
 
 export const formatStatusMessage = (status: ItemStatus | ExchangeStatus) => STATUS_MESSAGE_MAP[status];
+
+const resolveStatusLabel = (status: string): string => {
+  if ((Object.values(ItemStatus) as string[]).includes(status)) {
+    return formatItemStatus(status as ItemStatus);
+  }
+  if ((Object.values(ExchangeStatus) as string[]).includes(status)) {
+    return formatExchangeStatus(status as ExchangeStatus);
+  }
+  return status || '未知状态';
+};
+
+/** 把"对方改动"渲染成：物品名 已由 可交换 改为 已交换（时间） */
+export const formatRemoteChange = (change: RemoteChange): string => {
+  const subject = change.kind === 'exchange' ? '交换请求' : change.title ?? '物品';
+  const from = resolveStatusLabel(change.fromStatus);
+  const to = resolveStatusLabel(change.toStatus);
+  const time = formatDate(change.changedAt);
+  return `${subject} 已由「${from}」改为「${to}」（${time}）`;
+};
+
+/** 落后页面提交被拒后，提示当前有效版本的修订号 */
+export const formatRevisionHint = (expected: number, actual: number): string =>
+  `页面版本 r${expected} 已落后，当前有效版本 r${actual}`;

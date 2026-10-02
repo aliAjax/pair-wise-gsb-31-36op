@@ -34,8 +34,9 @@ const seedUsers: User[] = [
 
 export const userApi = {
   async list(): Promise<User[]> {
-    const users = await storage.get<User[]>(STORAGE_KEYS.users, []);
-    if (users.length) return users;
+    if (await storage.has(STORAGE_KEYS.users)) {
+      return storage.get<User[]>(STORAGE_KEYS.users, []);
+    }
     await storage.set(STORAGE_KEYS.users, seedUsers);
     await storage.set(STORAGE_KEYS.currentUserId, seedUsers[0].id);
     return seedUsers;

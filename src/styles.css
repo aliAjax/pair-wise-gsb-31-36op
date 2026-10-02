@@ -670,3 +670,81 @@ textarea {
     min-height: 280px;
   }
 }
+
+/* 修订号、冲突提示与可恢复批次 */
+.revision-tag {
+  display: block;
+  opacity: 0.7;
+  font-size: 0.78rem;
+}
+
+.field-error {
+  margin: 4px 0;
+  color: #d0342c;
+  font-size: 0.85rem;
+}
+
+.conflict-box {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in oklch, #e6a23c, transparent 40%);
+  border-radius: 12px;
+  background: color-mix(in oklch, #e6a23c, transparent 88%);
+}
+
+.conflict-box ul,
+.pending-card__changes,
+.pending-card__revisions {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 4px;
+  font-size: 0.88rem;
+}
+
+.pending-panel {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.pending-panel h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.pending-card {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px solid color-mix(in oklch, var(--rs-accent), transparent 70%);
+  border-radius: 14px;
+  background: color-mix(in oklch, var(--rs-accent), transparent 94%);
+}
+
+.pending-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.pending-card__error {
+  margin: 0;
+  color: #d0342c;
+  font-size: 0.88rem;
+}
+
+.pending-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pending-card__actions button {
+  min-height: auto;
+  padding: 6px 14px;
+  font-size: 0.86rem;
+}

@@ -8,6 +8,19 @@ export const PAGE_MESSAGES = {
   profileUpdated: '个人资料已更新',
 };
 
+export const CONFLICT_MESSAGES = {
+  stalePage: '当前页面已落后，输入内容已保留，请确认对方改动后基于最新数据重做',
+  batchLeft: '提交未生效，已保留为可重试批次',
+  batchRetrying: '正在基于最新数据重试…',
+  batchRetried: '重试成功',
+  batchRetryStale: '仍是旧版本，已更新对方改动，请确认后再次重试',
+  batchDismissed: '已取消该待处理批次',
+  pendingTitle: '待恢复的提交',
+  retry: '基于最新数据重试',
+  dismiss: '放弃此批次',
+  exchangedItemLocked: '该物品已换出或已下架，不能再发起交换',
+};
+
 export const FORM_MESSAGES = {
   requiredTitle: '物品标题不能为空',
   requiredDescription: '请描述你希望交换的物品',

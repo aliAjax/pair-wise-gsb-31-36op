@@ -49,15 +49,15 @@ pnpm build
 
 ```text
 src/
-├── api/              # userApi.ts, itemApi.ts, exchangeApi.ts：本地数据 API 层
-├── stores/           # authStore.ts, itemStore.ts, exchangeStore.ts, themeStore.ts
-├── models/           # user.ts, item.ts, exchange.ts：独立数据模型
-├── types/            # 共享类型补充
-├── components/common/# 共享业务组件和 GlobalErrorBoundary
-├── hooks/            # useAuth.ts, useLocalStorage.ts, useExchangeStats.ts
+├── api/              # userApi.ts, itemApi.ts, exchangeApi.ts, batchApi.ts：本地数据 API 层
+├── stores/           # authStore.ts, itemStore.ts, exchangeStore.ts, recoveryStore.ts, themeStore.ts
+├── models/           # user.ts, item.ts, exchange.ts：独立数据模型（含 revision 修订号）
+├── types/            # 共享类型补充（修订冲突、可重试批次）
+├── components/common/# ItemCard、CategoryFilter、ExchangeCard、PendingBatchPanel 等
+├── hooks/            # useAuth.ts, useLocalStorage.ts, useExchangeStats.ts, useRemoteRefresh.ts
 ├── pages/            # Home, ItemDetail, Publish, Exchanges, Profile
 ├── router/           # index.ts + guards.ts
-├── utils/            # storage.ts, formatters.ts, validators.ts, message.ts, themeUtils.ts
+├── utils/            # storage.ts, migrations.ts, revision.ts, runBatch.ts, rebaseBatch.ts, formatters.ts 等
 ├── constants/        # item.ts, exchange.ts, themes.ts, messages.ts
 ├── App.vue
 ├── main.ts
@@ -66,10 +66,23 @@ src/
 
 ## 数据持久化说明
 
-- `utils/storage.ts` 统一封装 localStorage 和 IndexedDB。
+- `utils/storage.ts` 统一封装 localStorage 和 IndexedDB，信封带 `version`（当前为 v2）。
 - 所有 `api/*Api.ts` 通过 `storage.ts` 读写数据，不在组件里直接写业务数据。
 - 存储层包含序列化、版本号、过期清理、存储 key 管理。
 - 首次启动会写入演示用户、物品和交换请求。
+
+### 修订号（乐观锁）与可恢复提交
+
+为解决“两个标签页同时改一笔交换，旧页面把刚写入的结果盖回去”的问题：
+
+- `Item` / `Exchange` 各带递增的 `revision` 修订号与 `updated_at`；每次写入 +1。
+- 发起交换携带两侧物品的修订信息；同意 / 拒绝 / 完成携带交换与两侧物品的修订信息；下架携带物品自身修订信息。
+- 提交时页面修订与存储中的有效版本不一致（或物品已换出/已下架）即抛 `RevisionMismatchError`：**保留页面输入**，列出对方改动，并引导基于最新数据重做。
+- 交换与物品状态在同一批次内校验、一次整表写入，保证“一起成功，否则不留半成品”。
+- 发起交换携带幂等键 `request_key`，失败重试不会重复生成交换记录；同意 / 拒绝 / 完成本身按动作幂等。
+- 失败的提交会写入 `reswap:pending-batches`（`api/batchApi.ts`、`stores/recoveryStore.ts`、`utils/runBatch.ts`、`utils/rebaseBatch.ts`），交换管理页可用 `PendingBatchPanel` 查看对方改动、基于最新数据重试或放弃；应用启动时自动回放仍是 pending 的批次。
+- 监听浏览器 `storage` 事件（`hooks/useRemoteRefresh.ts`），首页、详情、交换页在另一标签页写入后立即认同最新有效版本。
+- 旧的 v1 数据在读取时由 `utils/migrations.ts` 自动迁移：补 `revision = 1` 与 `updated_at`，信封升级到 v2，不需要手工清库。
 
 ## 横切关注点
 

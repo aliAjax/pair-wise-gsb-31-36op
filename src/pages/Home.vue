@@ -40,6 +40,7 @@ import EmptyState from '@/components/common/EmptyState.vue';
 import ItemCard from '@/components/common/ItemCard.vue';
 import { PAGE_MESSAGES } from '@/constants/messages';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
+import { useRemoteRefresh } from '@/hooks/useRemoteRefresh';
 import { useAuthStore } from '@/stores/authStore';
 import { useItemStore } from '@/stores/itemStore';
 
@@ -47,6 +48,9 @@ const itemStore = useItemStore();
 const authStore = useAuthStore();
 const ownerOf = (userId: string) => authStore.users.find((user) => user.id === userId);
 const savedKeyword = useLocalStorage('reswap:last-home-keyword', '');
+
+// 其它标签页写入后，首页立刻认同存储中的最新有效版本
+useRemoteRefresh();
 
 onMounted(() => {
   if (!itemStore.keyword && savedKeyword.value) {
