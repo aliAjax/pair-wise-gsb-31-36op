@@ -67,11 +67,14 @@ import ItemCard from '@/components/common/ItemCard.vue';
 import UserBrief from '@/components/common/UserBrief.vue';
 import { ItemStatus } from '@/constants/item';
 import { useAuth } from '@/hooks/useAuth';
+import { useStorageSync } from '@/hooks/useStorageSync';
 import { useItemStore } from '@/stores/itemStore';
 
 const { currentUser, users, login, updateProfile } = useAuth();
 const itemStore = useItemStore();
 const selectedUserId = ref('');
+
+useStorageSync();
 
 const form = reactive({
   nickname: '',

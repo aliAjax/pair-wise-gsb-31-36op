@@ -49,16 +49,16 @@ pnpm build
 
 ```text
 src/
-├── api/              # userApi.ts, itemApi.ts, exchangeApi.ts：本地数据 API 层
-├── stores/           # authStore.ts, itemStore.ts, exchangeStore.ts, themeStore.ts
-├── models/           # user.ts, item.ts, exchange.ts：独立数据模型
+├── api/              # userApi.ts, itemApi.ts, exchangeApi.ts, commitApi.ts：本地数据 API 与可恢复提交层
+├── stores/           # authStore.ts, itemStore.ts, exchangeStore.ts, commitStore.ts, themeStore.ts
+├── models/           # user.ts, item.ts, exchange.ts, commitBatch.ts：独立数据模型
 ├── types/            # 共享类型补充
-├── components/common/# 共享业务组件和 GlobalErrorBoundary
-├── hooks/            # useAuth.ts, useLocalStorage.ts, useExchangeStats.ts
+├── components/common/# ItemCard, CategoryFilter, ExchangeCard, CommitConflictPanel, RecoveryBanner 等
+├── hooks/            # useAuth.ts, useLocalStorage.ts, useExchangeStats.ts, useStorageSync.ts
 ├── pages/            # Home, ItemDetail, Publish, Exchanges, Profile
 ├── router/           # index.ts + guards.ts
-├── utils/            # storage.ts, formatters.ts, validators.ts, message.ts, themeUtils.ts
-├── constants/        # item.ts, exchange.ts, themes.ts, messages.ts
+├── utils/            # storage.ts, commitError.ts, formatters.ts, validators.ts, message.ts, themeUtils.ts
+├── constants/        # item.ts, exchange.ts, commit.ts, themes.ts, messages.ts
 ├── App.vue
 ├── main.ts
 └── styles.css
@@ -71,6 +71,15 @@ src/
 - 存储层包含序列化、版本号、过期清理、存储 key 管理。
 - 首次启动会写入演示用户、物品和交换请求。
 
+### 乐观锁与可恢复提交（多标签页并发安全）
+
+- `Item` 与 `Exchange` 均带 `revision` 修订号，任何写入都会 +1。
+- 发起交换、确认、拒绝、完成以及物品下架统一走 `api/commitApi.ts` 的可恢复批次：页面必须携带交换与两侧物品的修订信息，页面落后会收到 `CommitConflictError`，输入保留、列出对方改动后基于新数据重试。
+- 交换与两侧物品状态在同一批次内一起成功；写入中断会把批次留在 `reswap:commit-outbox`，启动或跨标签页 storage 事件触发幂等恢复，交换记录使用预生成 id，重试不会重复生成。
+- 同意交换后两侧物品进入 `booked`（交换锁定），已锁定物品不能再发起交换或下架，完成后变为 `exchanged`。
+- 旧版本（v1）数据在启动时自动迁移到 v2：补 `revision=1`，并按交换状态对账物品状态（已同意→锁定、已完成→已交换）。
+- `hooks/useStorageSync.ts` 监听 storage 事件，首页、详情、交换页与个人中心在其他标签页提交后自动重新读取，认同一有效版本。
+
 ## 横切关注点
 
 - 主题切换：`stores/themeStore.ts`、`constants/themes.ts`、`utils/themeUtils.ts`、`App.vue`、`components/common/CategoryFilter.vue`、`components/common/UserBrief.vue`、`components/common/ItemCard.vue`。
@@ -80,21 +89,25 @@ src/
 
 ### ItemStatus
 
-定义位置：`src/constants/item.ts`
+定义位置：`src/constants/item.ts`（AVAILABLE / BOOKED / EXCHANGED / OFFLINE）
 
 出现位置：
 
 - `src/models/item.ts`
 - `src/constants/messages.ts`
 - `src/api/itemApi.ts`
-- `src/api/exchangeApi.ts`
+- `src/api/commitApi.ts`
 - `src/stores/itemStore.ts`
+- `src/stores/commitStore.ts`
 - `src/router/guards.ts`
 - `src/utils/formatters.ts`
+- `src/utils/storage.ts`（旧数据迁移对账）
 - `src/components/common/ItemCard.vue`
+- `src/components/common/ExchangeCard.vue`
 - `src/pages/ItemDetail.vue`
 - `src/pages/Publish.vue`
 - `src/pages/Profile.vue`
+- `src/pages/Home.vue`
 
 ### ExchangeStatus
 
@@ -105,11 +118,32 @@ src/
 - `src/models/exchange.ts`
 - `src/constants/messages.ts`
 - `src/api/exchangeApi.ts`
+- `src/api/commitApi.ts`
 - `src/stores/exchangeStore.ts`
+- `src/stores/commitStore.ts`
 - `src/router/guards.ts`
 - `src/utils/formatters.ts`
 - `src/hooks/useExchangeStats.ts`
 - `src/components/common/ExchangeCard.vue`
+- `src/pages/ItemDetail.vue`
+- `src/pages/Exchanges.vue`
+
+### CommitKind / CommitBatchStatus / CommitReason
+
+定义位置：`src/constants/commit.ts`
+
+出现位置：
+
+- `src/models/commitBatch.ts`
+- `src/api/commitApi.ts`
+- `src/stores/commitStore.ts`
+- `src/utils/commitError.ts`
+- `src/utils/formatters.ts`
+- `src/hooks/useStorageSync.ts`
+- `src/components/common/CommitConflictPanel.vue`
+- `src/components/common/RecoveryBanner.vue`
+- `src/stores/exchangeStore.ts`
+- `src/stores/itemStore.ts`
 - `src/pages/ItemDetail.vue`
 - `src/pages/Exchanges.vue`
 

@@ -1,8 +1,11 @@
 import { del, get, set } from 'idb-keyval';
 
+import { ItemStatus } from '@/constants/item';
+import type { Exchange } from '@/models/exchange';
+import type { Item } from '@/models/item';
 import type { PersistedEnvelope } from '@/types';
 
-const STORAGE_VERSION = 1;
+const STORAGE_VERSION = 2;
 const DEFAULT_TTL = 1000 * 60 * 60 * 24 * 365;
 
 const prefixed = (key: string) => `reswap:${key}`;
@@ -14,6 +17,8 @@ export const STORAGE_KEYS = {
   exchanges: prefixed('exchanges'),
   theme: prefixed('theme'),
   lastClean: prefixed('last-clean'),
+  commitOutbox: prefixed('commit-outbox'),
+  commitLock: prefixed('commit-lock'),
 };
 
 const now = () => Date.now();
@@ -42,11 +47,100 @@ const parseLocal = <T>(key: string): PersistedEnvelope<T> | null => {
   }
 };
 
+const readRawEnvelope = async <T>(key: string): Promise<PersistedEnvelope<T> | null> => {
+  const localEnvelope = parseLocal<T>(key);
+  if (localEnvelope) return localEnvelope;
+  return (await get<PersistedEnvelope<T>>(key)) ?? null;
+};
+
 const writeLocal = <T>(key: string, payload: T, ttl?: number) => {
   localStorage.setItem(key, JSON.stringify(envelope(payload, ttl)));
 };
 
+const persist = async <T>(key: string, payload: T, ttl?: number) => {
+  const plainPayload = toPlain(payload);
+  const packed = envelope(plainPayload, ttl);
+  localStorage.setItem(key, JSON.stringify(packed));
+  await set(key, packed);
+  return plainPayload;
+};
+
+/**
+ * v1 -> v2：旧数据缺少修订号，按 1 补齐，并根据交换状态对账物品状态，
+ * 让旧版本里“已同意但物品仍可交换”的数据也进入一致状态。
+ */
+const migrateExchangesV1 = (payload: Exchange[]): Exchange[] =>
+  payload.map((entry) => ({
+    ...entry,
+    revision: typeof entry.revision === 'number' ? entry.revision : 1,
+  }));
+
+const migrateItemsV1 = (payload: Item[], exchanges: Exchange[]): Item[] => {
+  const acceptedIds = new Set(
+    exchanges
+      .filter((entry) => entry.status === 'accepted')
+      .flatMap((entry) => [entry.from_item_id, entry.to_item_id]),
+  );
+  const completedIds = new Set(
+    exchanges
+      .filter((entry) => entry.status === 'completed')
+      .flatMap((entry) => [entry.from_item_id, entry.to_item_id]),
+  );
+  const acceptedExchangeOf = (itemId: string) =>
+    exchanges.find(
+      (entry) =>
+        entry.status === 'accepted' &&
+        (entry.from_item_id === itemId || entry.to_item_id === itemId),
+    );
+
+  return payload.map((entry) => {
+    if (typeof entry.revision === 'number') return entry;
+    const next: Item = { ...entry, revision: 1 };
+    if (entry.status === ItemStatus.AVAILABLE && acceptedIds.has(entry.id)) {
+      next.status = ItemStatus.BOOKED;
+      next.locked_by_exchange_id = acceptedExchangeOf(entry.id)?.id;
+    }
+    if (entry.status !== ItemStatus.OFFLINE && completedIds.has(entry.id)) {
+      next.status = ItemStatus.EXCHANGED;
+    }
+    return next;
+  });
+};
+
+/** 启动时把 v1 信封整体升级为 v2，必须在任何 hydrate 之前执行 */
+const migrateStorage = async (): Promise<void> => {
+  const versionedKeys = [
+    STORAGE_KEYS.users,
+    STORAGE_KEYS.exchanges,
+    STORAGE_KEYS.items,
+    STORAGE_KEYS.currentUserId,
+  ];
+
+  const exchangeRaw = await readRawEnvelope<Exchange[]>(STORAGE_KEYS.exchanges);
+  let exchanges: Exchange[] = [];
+  if (exchangeRaw && exchangeRaw.version < STORAGE_VERSION && !isExpired(exchangeRaw)) {
+    exchanges = migrateExchangesV1(exchangeRaw.payload ?? []);
+    await persist(STORAGE_KEYS.exchanges, exchanges);
+  } else if (exchangeRaw) {
+    exchanges = exchangeRaw.payload ?? [];
+  }
+
+  for (const key of versionedKeys) {
+    if (key === STORAGE_KEYS.exchanges) continue;
+    const raw = await readRawEnvelope<unknown>(key);
+    if (!raw || raw.version >= STORAGE_VERSION || isExpired(raw)) continue;
+    if (key === STORAGE_KEYS.items) {
+      await persist(key, migrateItemsV1((raw.payload as Item[]) ?? [], exchanges));
+    } else {
+      await persist(key, raw.payload);
+    }
+  }
+};
+
 export const storage = {
+  version: STORAGE_VERSION,
+  migrate: migrateStorage,
+
   async get<T>(key: string, fallback: T): Promise<T> {
     const localEnvelope = parseLocal<T>(key);
     if (isExpired(localEnvelope)) {
@@ -69,12 +163,22 @@ export const storage = {
     return fallback;
   },
 
+  async getRaw<T>(key: string): Promise<T | null> {
+    const data = await readRawEnvelope<T>(key);
+    return data && !isExpired(data) ? data.payload : null;
+  },
+
   async set<T>(key: string, payload: T, ttl?: number): Promise<T> {
-    const plainPayload = toPlain(payload);
-    const packed = envelope(plainPayload, ttl);
-    localStorage.setItem(key, JSON.stringify(packed));
-    await set(key, packed);
-    return plainPayload;
+    return persist(key, payload, ttl);
+  },
+
+  async setRaw(key: string, payload: unknown): Promise<void> {
+    localStorage.setItem(key, JSON.stringify(payload));
+  },
+
+  async getRawLocal<T>(key: string): Promise<T | null> {
+    const data = parseLocal<T>(key);
+    return data && !isExpired(data) ? data.payload : null;
   },
 
   async remove(key: string): Promise<void> {
@@ -92,7 +196,10 @@ export const storage = {
         }
       }),
     );
-    localStorage.setItem(STORAGE_KEYS.lastClean, JSON.stringify(envelope(new Date().toISOString())));
+    localStorage.setItem(
+      STORAGE_KEYS.lastClean,
+      JSON.stringify(envelope(new Date().toISOString())),
+    );
   },
 
   createId(prefix: string): string {

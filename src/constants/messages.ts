@@ -6,6 +6,10 @@ export const PAGE_MESSAGES = {
   publishReady: '发布后会同步写入 localStorage 和 IndexedDB',
   exchangeEmpty: '还没有交换请求，先去首页挑一件合眼缘的物品',
   profileUpdated: '个人资料已更新',
+  staleSubmitTitle: '这个页面的内容已经落后',
+  staleSubmitHint: '你填写的内容已保留，请确认下面的最新改动后基于新数据重试。',
+  pendingBatchTitle: '有未完成的提交',
+  pendingBatchHint: '上次提交在写入过程中中断，交换与物品还没有一起成功。',
 };
 
 export const FORM_MESSAGES = {
@@ -18,12 +22,14 @@ export const FORM_MESSAGES = {
 
 export const LOG_MESSAGES = {
   storageHydrated: 'storage hydrated with status maps',
-  itemStatusUsed: `ItemStatus includes ${ItemStatus.AVAILABLE}, ${ItemStatus.EXCHANGED}, ${ItemStatus.OFFLINE}`,
+  storageMigrated: 'storage migrated to revision-enabled version',
+  itemStatusUsed: `ItemStatus includes ${ItemStatus.AVAILABLE}, ${ItemStatus.BOOKED}, ${ItemStatus.EXCHANGED}, ${ItemStatus.OFFLINE}`,
   exchangeStatusUsed: `ExchangeStatus includes ${ExchangeStatus.PENDING}, ${ExchangeStatus.ACCEPTED}, ${ExchangeStatus.REJECTED}, ${ExchangeStatus.COMPLETED}`,
 };
 
 export const STATUS_MESSAGE_MAP = {
   [ItemStatus.AVAILABLE]: '这件物品可发起交换',
+  [ItemStatus.BOOKED]: '交换已同意，物品锁定中',
   [ItemStatus.EXCHANGED]: '这件物品已完成交换',
   [ItemStatus.OFFLINE]: '这件物品已下架',
   [ExchangeStatus.PENDING]: '等待对方确认',

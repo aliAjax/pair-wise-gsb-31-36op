@@ -7,6 +7,12 @@
       </div>
     </div>
 
+    <RecoveryBanner
+      :batches="commitStore.batches"
+      @retry="commitStore.retryBatch"
+      @discard="commitStore.discardBatch"
+    />
+
     <div class="stats-row">
       <span>全部 {{ stats.total }}</span>
       <span>待确认 {{ stats.pending }}</span>
@@ -32,9 +38,10 @@
         :exchange="exchange"
         :items="itemStore.items"
         :users="authStore.users"
-        @accept="exchangeStore.accept"
-        @reject="exchangeStore.reject"
-        @complete="completeExchange"
+        :conflict="commitStore.conflictOf(`exchange:${exchange.id}`)"
+        @accept="onAccept"
+        @reject="onReject"
+        @complete="onComplete"
       />
     </div>
     <EmptyState
@@ -50,18 +57,25 @@
 import { computed, ref } from 'vue';
 
 import EmptyState from '@/components/common/EmptyState.vue';
-import ExchangeCard from '@/components/common/ExchangeCard.vue';
-import { EXCHANGE_STATUS_OPTIONS, ExchangeStatus } from '@/constants/exchange';
+import ExchangeCard, { type ExchangeActionPayload } from '@/components/common/ExchangeCard.vue';
+import RecoveryBanner from '@/components/common/RecoveryBanner.vue';
+import { EXCHANGE_STATUS_OPTIONS } from '@/constants/exchange';
 import { PAGE_MESSAGES } from '@/constants/messages';
 import { useExchangeStats } from '@/hooks/useExchangeStats';
+import { useStorageSync } from '@/hooks/useStorageSync';
 import { useAuthStore } from '@/stores/authStore';
+import { useCommitStore } from '@/stores/commitStore';
 import { useExchangeStore } from '@/stores/exchangeStore';
 import { useItemStore } from '@/stores/itemStore';
 
 const authStore = useAuthStore();
 const itemStore = useItemStore();
 const exchangeStore = useExchangeStore();
+const commitStore = useCommitStore();
 const tab = ref<'sent' | 'received'>('sent');
+
+// 其他标签页提交后，本页以存储为唯一有效版本重新读取
+useStorageSync();
 
 const mine = computed(() => {
   if (!authStore.currentUser) return [];
@@ -73,10 +87,7 @@ const mine = computed(() => {
 const visibleExchanges = computed(() => mine.value);
 const stats = useExchangeStats(() => exchangeStore.exchanges);
 
-const completeExchange = async (id: string) => {
-  await exchangeStore.complete(id);
-  itemStore.items = itemStore.items.map((item) => item);
-};
-
-void ExchangeStatus.PENDING;
+const onAccept = (payload: ExchangeActionPayload) => exchangeStore.accept(payload.id, payload);
+const onReject = (payload: ExchangeActionPayload) => exchangeStore.reject(payload.id, payload);
+const onComplete = (payload: ExchangeActionPayload) => exchangeStore.complete(payload.id, payload);
 </script>

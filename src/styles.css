@@ -670,3 +670,81 @@ textarea {
     min-height: 280px;
   }
 }
+
+/* 乐观锁冲突面板与可恢复批次提示 */
+.conflict-panel {
+  display: grid;
+  gap: 8px;
+  border: 1px solid color-mix(in oklch, #bb7a35, transparent 45%);
+  border-radius: 8px;
+  padding: 14px 16px;
+  background: color-mix(in oklch, #bb7a35, transparent 88%);
+}
+
+.conflict-panel strong {
+  color: #9b5c1c;
+}
+
+.conflict-panel p {
+  margin: 0;
+  color: color-mix(in oklch, var(--rs-text), transparent 22%);
+}
+
+.conflict-panel ul {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 4px;
+}
+
+.conflict-panel__actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.conflict-panel__actions button {
+  min-height: 34px;
+  border: 1px solid var(--rs-border);
+  border-radius: 7px;
+  padding: 6px 12px;
+  background: var(--rs-surface);
+  color: var(--rs-text);
+}
+
+.recovery-banner {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  border: 1px solid color-mix(in oklch, var(--rs-primary), transparent 55%);
+  border-radius: 8px;
+  padding: 14px 16px;
+  background: color-mix(in oklch, var(--rs-primary), transparent 90%);
+  margin-bottom: 14px;
+}
+
+.recovery-banner p {
+  margin: 4px 0 0;
+  color: color-mix(in oklch, var(--rs-text), transparent 25%);
+}
+
+.recovery-banner__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.recovery-banner__actions button {
+  min-height: 34px;
+  border: 1px solid var(--rs-border);
+  border-radius: 7px;
+  padding: 6px 12px;
+  background: var(--rs-surface);
+  color: var(--rs-text);
+}
+
+.revision-tag {
+  color: color-mix(in oklch, var(--rs-text), transparent 45%);
+  font-size: 0.72rem;
+}

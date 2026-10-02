@@ -8,10 +8,13 @@ export interface Exchange {
   to_item_id: string;
   status: ExchangeStatus;
   message: string;
+  /** 乐观锁修订号：确认、拒绝、完成等任何写入都会 +1 */
+  revision: number;
   created_at: string;
   updated_at: string;
 }
 
-export type ExchangeDraft = Omit<Exchange, 'id' | 'status' | 'created_at' | 'updated_at'> & {
+export type ExchangeDraft = Omit<Exchange, 'id' | 'status' | 'revision' | 'created_at' | 'updated_at'> & {
   status?: ExchangeStatus;
+  revision?: number;
 };

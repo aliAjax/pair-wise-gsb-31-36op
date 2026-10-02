@@ -13,6 +13,7 @@ const seedItems: Item[] = [
     condition: ItemCondition.GOOD,
     images: [],
     status: ItemStatus.AVAILABLE,
+    revision: 1,
     location: '杭州 · 西湖',
     created_at: new Date().toISOString(),
   },
@@ -25,6 +26,7 @@ const seedItems: Item[] = [
     condition: ItemCondition.LIKE_NEW,
     images: [],
     status: ItemStatus.AVAILABLE,
+    revision: 1,
     location: '苏州 · 工业园',
     created_at: new Date(Date.now() - 1000 * 60 * 60 * 26).toISOString(),
   },
@@ -37,6 +39,7 @@ const seedItems: Item[] = [
     condition: ItemCondition.GOOD,
     images: [],
     status: ItemStatus.AVAILABLE,
+    revision: 1,
     location: '上海 · 徐汇',
     created_at: new Date(Date.now() - 1000 * 60 * 60 * 3).toISOString(),
   },
@@ -49,6 +52,7 @@ const seedItems: Item[] = [
     condition: ItemCondition.LIKE_NEW,
     images: [],
     status: ItemStatus.EXCHANGED,
+    revision: 1,
     location: '杭州 · 西湖',
     created_at: new Date(Date.now() - 1000 * 60 * 60 * 90).toISOString(),
   },
@@ -73,6 +77,7 @@ export const itemApi = {
       ...draft,
       id: storage.createId('item'),
       status: draft.status ?? ItemStatus.AVAILABLE,
+      revision: 1,
       created_at: new Date().toISOString(),
     };
     await storage.set(STORAGE_KEYS.items, [nextItem, ...items]);
@@ -83,15 +88,15 @@ export const itemApi = {
     const items = await this.list();
     const current = items.find((item) => item.id === id);
     if (!current) throw new Error('物品不存在');
-    const nextItem = { ...current, ...patch };
+    const nextItem = {
+      ...current,
+      ...patch,
+      revision: current.revision + 1,
+    };
     await storage.set(
       STORAGE_KEYS.items,
       items.map((item) => (item.id === id ? nextItem : item)),
     );
     return nextItem;
-  },
-
-  async setStatus(id: string, status: ItemStatus): Promise<Item> {
-    return this.update(id, { status });
   },
 };
